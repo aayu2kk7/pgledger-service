@@ -79,9 +79,7 @@ func (limiter *writeRateLimiter) allow(client string) (bool, time.Duration) {
 		}
 	}
 	wait := time.Duration((1 - entry.tokens) / limiter.limit * float64(time.Second))
-	if wait < time.Second {
-		wait = time.Second
-	}
+	wait = max(wait, time.Second)
 	return false, wait
 }
 
@@ -105,7 +103,7 @@ func writeRateLimitMiddleware(next http.Handler, limiter *writeRateLimiter) http
 func clientIP(r *http.Request) string {
 	// Render sets the original client address as the first X-Forwarded-For value.
 	// Ignore malformed values and fall back to the direct peer address.
-	for _, candidate := range strings.Split(r.Header.Get("X-Forwarded-For"), ",") {
+	for candidate := range strings.SplitSeq(r.Header.Get("X-Forwarded-For"), ",") {
 		if ip := net.ParseIP(strings.TrimSpace(candidate)); ip != nil {
 			return ip.String()
 		}
