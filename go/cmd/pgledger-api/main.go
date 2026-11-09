@@ -117,8 +117,11 @@ func main() {
 		}
 	}
 	httpServer := &http.Server{
-		Addr:              addr,
-		Handler:           authMiddleware(newHandler(db), authUser, authPassword),
+		Addr: addr,
+		Handler: writeRateLimitMiddleware(
+			authMiddleware(newHandler(db), authUser, authPassword),
+			newWriteRateLimiter(writeRatePerMinute, writeBurst),
+		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
