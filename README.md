@@ -1,6 +1,6 @@
-# pgledger
+# pgledger-service
 
-A [double entry ledger](https://en.wikipedia.org/wiki/Double-entry_bookkeeping) implementation in PostgreSQL.
+A Go HTTP service and demo UI for a PostgreSQL [double-entry ledger](https://en.wikipedia.org/wiki/Double-entry_bookkeeping). The SQL ledger engine is based on [pgr0ss/pgledger](https://github.com/pgr0ss/pgledger); its MIT license notice is retained in this repository. The vendored `scoville/pgsql-ulid` helpers retain their separate BSD 3-Clause notice in `vendor/scoville-pgsql-ulid/LICENSE`.
 
 ## Why pgledger
 
@@ -29,6 +29,57 @@ To install, run the following SQL files using whatever database migration tool o
 You can see an example in the `justfile` using `docker` and `psql`: [justfile#L13-L20](https://github.com/pgr0ss/pgledger/blob/ee38f40a9b45ab24b5c0cc0c12cfb7150499a55a/justfile#L13-L20)
 
 ## Usage
+
+### What this project adds
+
+The upstream `pgledger` project provides the PostgreSQL ledger engine: its tables, views, stored functions, account locking, idempotency handling, examples, and database-focused test suite. This fork keeps that SQL ledger as its accounting core and adds an optional Go HTTP API, an embedded browser demo, API-level race tests, and a separate HTTP load-check tool. It also adds a container build and CI job for the API image. These additions exercise the existing database guarantees through a service interface; they do not replace the ledger's SQL enforcement.
+
+### Optional Go HTTP API
+
+The repository also includes a small HTTP service that calls the PostgreSQL ledger functions and serves a lightweight demo page at [http://localhost:8080](http://localhost:8080). The page includes a concurrency race test that sends simultaneous transfers through the API. For the example of five accepted and five rejected requests, use a source account with a `100.00` balance and overdrafts blocked, select a destination account, and run ten requests for `20.00` each. The database integration test can be run with `cd go; mise exec -- go test ./cmd/pgledger-api -run '^TestConcurrentTransfersRespectBalanceConstraintHTTP$' -count=1`; it makes the same 10-request race and asserts the accepted/rejected counts, balances, and versions. Run the API from the repository root with `just api`. It listens on `127.0.0.1:8080` by default so it is reachable only from the local machine; set `LISTEN_ADDR` to change the address. Set `DATABASE_URL` to choose a PostgreSQL connection string. When `DATABASE_URL` is unset, it uses the same local connection settings as the Go integration tests, including `POSTGRES_PORT`.
+
+For deployment, configure `PGLEDGER_HTTP_USER` and `PGLEDGER_HTTP_PASSWORD` to enable HTTP Basic Auth for the page and API. Set `PGLEDGER_REQUIRE_AUTH=true` to make credentials mandatory and to require an explicit TLS-enabled `DATABASE_URL` with `sslmode=require`, `verify-ca`, or `verify-full`; startup fails if any are missing. Point `DATABASE_URL` at a dedicated demo database, keep credentials in the host’s secret manager, and terminate HTTPS at a trusted reverse proxy. The container image defaults to `LISTEN_ADDR=0.0.0.0:8080` and requires auth and a database URL at startup. Build it with `docker build -f Dockerfile.api -t pgledger-api .`. The `.dockerignore` file excludes local environment files. GitHub Actions builds this image on pushes and pull requests but does not publish it. Apply the ULID and pgledger SQL files to the dedicated database before starting the container. Do not publish the unauthenticated local configuration.
+
+Before exposing the demo link, enable rate limits at the hosting edge and keep the demo database separate from development data. Basic Auth is a shared access gate; anyone given those credentials can use the demo. The API should only be reachable through the HTTPS host or reverse proxy.
+
+`POST /v1/accounts` accepts `name`, `currency`, optional `allow_negative_balance`, optional `allow_positive_balance`, and optional `metadata`. `GET /v1/accounts` sorts by each account's latest transfer or creation time so recently used and newly created accounts appear first; `GET /v1/accounts/{id}` returns one account and its current balance; `GET /v1/accounts/{id}/entries` returns ledger entries. List and entry routes accept `limit` (default 100, maximum 200) and `offset`; entry pages contain the most recent entries in account-version order. `POST /v1/transfers` accepts `from_account_id`, `to_account_id`, `amount` as a decimal string, optional RFC 3339 `event_at`, optional `metadata`, and a required `Idempotency-Key` header. Keys are mandatory so API retries cannot silently create duplicate transfers; PostgreSQL remains the source of truth for matching, replay, and mismatched-key rejection. Amounts are strings so clients can avoid floating point rounding. `GET /healthz` checks database connectivity.
+
+Example transfer request:
+
+```sh
+curl -X POST http://localhost:8080/v1/transfers \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: payment-123' \
+  -d '{"from_account_id":"pgla_…","to_account_id":"pgla_…","amount":"12.34"}'
+```
+
+Create endpoints return `201`; read endpoints return `200`. Errors use a JSON `error` field: `400` for malformed requests, `404` when an account does not exist, `422` when the ledger rejects a write, and `503` when the database cannot serve a read or health check.
+
+To measure the HTTP path, start the API and run this from a second terminal:
+
+```powershell
+cd go
+mise exec -- go run ./cmd/pgledger-api-performance --duration 10s --workers 20 --amount 1.00
+```
+
+The tool creates two dedicated hot accounts, sends transfers through the HTTP API for the requested duration, and reports throughput plus average, p95, and p99 latency. It then checks that both account versions match the successful transfer count and that their balances sum to zero. Each successful request appends permanent ledger records, so run it against demo or test data, not data you need to keep. This measures the API path and is separate from `just performance_check`, which exercises the database functions directly.
+
+One local run on Windows 11 with PostgreSQL in Docker Desktop (2026-11-08) used 10 workers for 5 seconds and completed 4,994 successful transfers: about 997 transfers/second, 10.019 ms average latency, 27.201 ms p95, and 44.295 ms p99. Treat this as a sample from one local run, not a capacity guarantee; hardware, database settings, and contention change the result.
+
+### Reconciliation worker
+
+The separate read-only worker periodically checks ledger consistency. Run a one-time scan with `cd go; mise exec -- go run ./cmd/pgledger-reconcile --once`, or run continuous scans with `cd go; mise exec -- go run ./cmd/pgledger-reconcile --interval 10s`. It reads the base ledger tables in one read-only `REPEATABLE READ` transaction and reports JSON with the check names, violation counts, and up to five example IDs. The one-time command exits nonzero if it finds violations. The continuous command writes a `CRITICAL` log message on violations; connect those logs to an alerting service to page an operator.
+
+Checks cover positive finite transfers and distinct accounts, the expected equal-and-opposite entry pair for every transfer, orphan entries, account balance/version totals, per-account version and balance chains, account balance policies, currency consistency, and global signed-entry conservation. For a production deployment, use a dedicated database role with `SELECT` access only to the three ledger tables; the worker also opens each scan as read-only. Example role grants:
+
+```sql
+CREATE ROLE pgledger_auditor NOLOGIN;
+GRANT USAGE ON SCHEMA public TO pgledger_auditor;
+GRANT SELECT ON pgledger_accounts, pgledger_transfers, pgledger_entries TO pgledger_auditor;
+CREATE ROLE pgledger_audit_login LOGIN IN ROLE pgledger_auditor;
+```
+
+Set the audit login password through your secret manager. This worker detects inconsistent ledger state; it does not provide cryptographic tamper evidence against an administrator who can alter both the ledger and its history. These are full-table checks, so measure their cost and move to incremental scans plus periodic full scans as the ledger grows.
 
 `pgledger` is primarily a set of functions and views. The ledger is appended via functions (such as creating accounts and transfers) and is queried via views (which present the underlying tables in friendly ways).
 

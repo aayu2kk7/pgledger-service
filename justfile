@@ -30,7 +30,10 @@ tidy:
     cd go && go mod tidy
 
 test:
-    cd go && go test -v ./test/
+    cd go && go test -v ./test/ ./cmd/pgledger-api/ ./cmd/pgledger-reconcile/
+
+api:
+    cd go && go run ./cmd/pgledger-api
 
 # -count=1 disables Go's test cache
 property-tests:
@@ -44,6 +47,15 @@ benchmark:
 
 performance_check duration='10s':
     cd go && go run performance_check.go --duration {{ duration }}
+
+api-performance-check duration='10s' workers='20' amount='1.00':
+    cd go && go run ./cmd/pgledger-api-performance --duration {{ duration }} --workers {{ workers }} --amount {{ amount }}
+
+reconcile interval='10s':
+    cd go && go run ./cmd/pgledger-reconcile --interval {{ interval }}
+
+reconcile-once:
+    cd go && go run ./cmd/pgledger-reconcile --once
 
 lint: deadcode lint-sql golangci-lint
 

@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101b22">
+  <title>pgledger · local demo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17272e;
+      --muted: #63737a;
+      --line: #dce5e5;
+      --paper: #f4f7f5;
+      --card: #fff;
+      --green: #176b54;
+      --green-dark: #105541;
+      --mint: #dff2e9;
+      --red: #a03d36;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); }
+    header { background: #101b22; color: #f5fbf8; padding: 28px max(24px, calc((100vw - 1120px) / 2)); }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: #b5e6cf; color: #123b30; font-weight: 800; }
+    h1 { margin: 0; font-size: 19px; letter-spacing: -.03em; }
+    header p { margin: 6px 0 0 50px; color: #b8c8c6; font-size: 13px; }
+    main { width: min(1120px, calc(100% - 40px)); margin: 32px auto 64px; }
+    .intro { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+    .eyebrow { color: var(--green); font-size: 11px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+    h2 { margin: 7px 0 0; font-size: clamp(24px, 3vw, 34px); letter-spacing: -.045em; }
+    .intro p { margin: 8px 0 0; color: var(--muted); max-width: 620px; font-size: 14px; line-height: 1.55; }
+    .demo-label { flex: 0 0 auto; padding: 8px 11px; border: 1px solid #bcdcca; border-radius: 999px; background: var(--mint); color: #145b47; font-size: 12px; font-weight: 700; }
+    .notice { margin: 0 0 18px; padding: 12px 14px; border: 1px solid #e8d9ad; border-radius: 12px; background: #fff9e8; color: #675323; font-size: 13px; line-height: 1.5; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 18px; align-items: start; }
+    .stack { display: grid; gap: 18px; }
+    .card { border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: 0 8px 24px #182e2810; }
+    .card-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 20px 20px 0; }
+    .card h3 { margin: 0; font-size: 16px; letter-spacing: -.02em; }
+    .sub { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .card-body { padding: 18px 20px 20px; }
+    form { display: grid; gap: 13px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label { display: grid; gap: 6px; color: #43545a; font-size: 12px; font-weight: 650; }
+    input, select { width: 100%; min-height: 42px; border: 1px solid #cbd7d8; border-radius: 9px; padding: 9px 11px; background: white; color: var(--ink); font: inherit; font-size: 14px; outline: none; }
+    input:focus, select:focus { border-color: #438d72; box-shadow: 0 0 0 3px #438d7220; }
+    input::placeholder { color: #98a6a9; }
+    .checks { display: flex; flex-wrap: wrap; gap: 16px; }
+    .check { display: flex; align-items: center; gap: 7px; color: #536369; font-size: 12px; }
+    .check input { width: 15px; min-height: 15px; accent-color: var(--green); }
+    button { min-height: 41px; border: 0; border-radius: 9px; padding: 9px 14px; background: var(--green); color: white; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .15s, transform .15s; }
+    button:hover { background: var(--green-dark); }
+    button:active { transform: translateY(1px); }
+    button:disabled { cursor: wait; opacity: .65; }
+    button.secondary { min-height: 34px; padding: 7px 10px; border: 1px solid var(--line); background: white; color: var(--ink); font-size: 12px; }
+    button.secondary:hover { background: #f1f6f3; }
+    .accounts { display: grid; gap: 10px; }
+    .account { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fcfdfc; }
+    .account-top { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+    .account-name { font-size: 14px; font-weight: 750; }
+    .currency { padding: 4px 7px; border-radius: 7px; background: #eef4f1; color: #446257; font-size: 10px; font-weight: 750; }
+    .balance { margin-top: 11px; font-size: 24px; font-weight: 750; letter-spacing: -.04em; }
+    .account-meta { margin-top: 5px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+    .account-policies { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+    .policy { padding: 4px 7px; border-radius: 999px; background: #eef4f1; color: #49645a; font-size: 10px; font-weight: 650; }
+    .account-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 12px; }
+    .empty { padding: 22px 14px; border: 1px dashed #cbd7d8; border-radius: 12px; color: var(--muted); text-align: center; font-size: 13px; line-height: 1.5; }
+    .activity { margin-top: 18px; }
+    .entry-list { display: grid; gap: 8px; margin-top: 12px; }
+    .entry { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 11px 12px; border-radius: 10px; background: #f5f8f6; }
+    .entry-title { font-size: 12px; font-weight: 700; }
+    .entry-amount { font-size: 12px; font-weight: 750; }
+    .entry-meta { color: var(--muted); font-size: 11px; }
+    .positive { color: var(--green); }
+    .negative { color: var(--red); }
+    .message { min-height: 18px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .message.error { color: var(--red); }
+    .message.success { color: var(--green); }
+    .refresh { font-size: 11px; color: var(--muted); }
+    @media (max-width: 960px) {
+      header { padding: 22px 20px; }
+      main { width: min(100% - 28px, 560px); margin-top: 24px; }
+      .intro { align-items: start; flex-direction: column; gap: 14px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 430px) {
+      .form-row { grid-template-columns: 1fr; }
+      .card-head, .card-body { padding-left: 15px; padding-right: 15px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><div class="mark" aria-hidden="true">P</div><h1>pgledger</h1></div>
+    <p>PostgreSQL ledger · local API demo</p>
+  </header>
+  <main>
+    <section class="intro">
+      <div>
+        <div class="eyebrow">Ledger playground</div>
+        <h2>Move money with a clear audit trail.</h2>
+        <p>Create demo accounts, post transfers, and inspect the immutable entries recorded by the ledger.</p>
+      </div>
+      <div class="demo-label">DEMO DATA ONLY</div>
+    </section>
+    <p class="notice"><strong>Local demo:</strong> Use fictional account names and amounts only. The account list and balances are loaded directly from the ledger database.</p>
+
+    <div class="grid">
+      <div class="stack">
+        <section class="card">
+          <div class="card-head">
+            <div><h3>Create an account</h3><p class="sub">Accounts start with a zero balance.</p></div>
+          </div>
+          <div class="card-body">
+            <form id="account-form">
+              <div class="form-row">
+                <label>Account name<input name="name" maxlength="200" placeholder="e.g. Checking" required></label>
+                <label>Currency<input name="currency" maxlength="20" value="USD" required></label>
+              </div>
+              <div class="checks">
+                <label class="check"><input name="allow_negative_balance" type="checkbox" checked> Allow negative balance</label>
+                <label class="check"><input name="allow_positive_balance" type="checkbox" checked> Allow positive balance</label>
+              </div>
+              <label>Metadata (optional JSON; leave blank to skip)<input name="metadata" placeholder='{"purpose":"demo"}'></label>
+              <button type="submit">Create account</button>
+              <div id="account-message" class="message" role="status" aria-live="polite"></div>
+            </form>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <div><h3>Post a transfer</h3><p class="sub">The API sends the decimal amount to PostgreSQL as text.</p></div>
+          </div>
+          <div class="card-body">
+            <form id="transfer-form">
+              <label>From account<select name="from_account_id" required disabled><option value="">Create two accounts first</option></select></label>
+              <label>To account<select name="to_account_id" required disabled><option value="">Create two accounts first</option></select></label>
+              <label>Amount<input name="amount" inputmode="decimal" placeholder="25.00" required></label>
+              <label>Idempotency key (optional)<input name="idempotency_key" placeholder="Generated for this request"></label>
+              <button type="submit" disabled>Submit transfer</button>
+              <div id="transfer-message" class="message" role="status" aria-live="polite"></div>
+            </form>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <div><h3>Concurrency race test</h3><p class="sub">Uses the From and To accounts selected above. Send competing debits at once and let the ledger enforce the balance rule.</p></div>
+          </div>
+          <div class="card-body">
+            <p class="sub" style="margin:0 0 14px">For a clear result, choose a source account with overdrafts blocked. Example: balance 100, ten requests for 20 should produce five accepted transfers and five rejections.</p>
+            <form id="race-form">
+              <div class="form-row">
+                <label>Concurrent requests<input name="request_count" type="number" min="2" max="50" value="10" required></label>
+                <label>Amount per request<input name="amount" inputmode="decimal" value="20.00" required></label>
+              </div>
+              <button type="submit" disabled>Run concurrent transfers</button>
+              <div id="race-message" class="message" role="status" aria-live="polite"></div>
+            </form>
+          </div>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="card-head">
+          <div><h3>Your demo accounts</h3><p class="sub">Loaded directly from the ledger.</p></div>
+          <button id="refresh-accounts" class="secondary" type="button">Refresh</button>
+        </div>
+        <div class="card-body">
+          <div id="accounts" class="accounts"><div class="empty">Loading accounts…</div></div>
+          <section class="activity" aria-live="polite">
+            <h3 id="entries-title">Ledger entries</h3>
+            <div id="entries" class="entry-list"><div class="empty">Choose “View entries” on an account to inspect its history.</div></div>
+          </section>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const accountForm = document.querySelector('#account-form');
+    const transferForm = document.querySelector('#transfer-form');
+    const raceForm = document.querySelector('#race-form');
+    const accountList = document.querySelector('#accounts');
+    const entriesList = document.querySelector('#entries');
+    const entriesTitle = document.querySelector('#entries-title');
+    let currentAccounts = [];
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, options);
+      const text = await response.text();
+      let data = null;
+      if (text) {
+        try { data = JSON.parse(text); } catch { data = text; }
+      }
+      if (!response.ok) {
+        const error = new Error(data && data.error ? data.error : `Request failed (${response.status})`);
+        error.status = response.status;
+        throw error;
+      }
+      return data;
+    }
+
+    function setMessage(id, text, kind = '') {
+      const element = document.getElementById(id);
+      element.textContent = text;
+      element.className = `message ${kind}`.trim();
+    }
+
+    function money(account) {
+      return `${account.balance} ${account.currency}`;
+    }
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function renderSelects(accounts) {
+      const dropdownAccounts = [...accounts].sort((a, b) =>
+        Date.parse(b.created_at) - Date.parse(a.created_at));
+      for (const name of ['from_account_id', 'to_account_id']) {
+        const select = transferForm.elements.namedItem(name);
+        const previous = select.value;
+        select.replaceChildren();
+        const prompt = dropdownAccounts.length === 0 ? 'Create two accounts first' : dropdownAccounts.length === 1 ? 'Create one more account' : 'Select an account';
+        const placeholder = el('option', '', prompt);
+        placeholder.value = '';
+        select.append(placeholder);
+        for (const account of dropdownAccounts) {
+          const option = el('option', '', `${account.name} · ${account.currency} · ${account.id}`);
+          option.value = account.id;
+          select.append(option);
+        }
+        if (dropdownAccounts.some(account => account.id === previous)) select.value = previous;
+        select.disabled = dropdownAccounts.length < 2;
+        select.onchange = updateTransferAvailability;
+      }
+      updateTransferAvailability();
+    }
+
+    function updateTransferAvailability() {
+      const from = transferForm.elements.from_account_id.value;
+      const to = transferForm.elements.to_account_id.value;
+      transferForm.querySelector('button[type="submit"]').disabled = currentAccounts.length < 2 || !from || !to || from === to;
+      raceForm.querySelector('button[type="submit"]').disabled = currentAccounts.length < 2 || !from || !to || from === to;
+    }
+
+    function renderAccounts(accounts) {
+      accountList.replaceChildren();
+      if (!accounts.length) {
+        accountList.append(el('div', 'empty', 'No accounts yet. Create one to get started.'));
+        renderSelects(accounts);
+        return;
+      }
+      for (const account of accounts) {
+        const card = el('article', 'account');
+        const top = el('div', 'account-top');
+        top.append(el('div', 'account-name', account.name), el('span', 'currency', account.currency));
+        card.append(top, el('div', 'balance', money(account)), el('div', 'account-meta', `${account.id} · version ${account.version}`));
+        const policies = el('div', 'account-policies');
+        policies.append(el('span', 'policy', account.allow_negative_balance ? 'Negative balance allowed' : 'Overdraft blocked'));
+        policies.append(el('span', 'policy', account.allow_positive_balance ? 'Credits allowed' : 'Credits blocked'));
+        card.append(policies);
+        const actions = el('div', 'account-actions');
+        const viewButton = el('button', 'secondary', 'View entries');
+        viewButton.type = 'button';
+        viewButton.addEventListener('click', () => loadEntries(account));
+        actions.append(viewButton, el('span', 'refresh', `Updated ${new Date(account.updated_at).toLocaleTimeString()}`));
+        card.append(actions);
+        accountList.append(card);
+      }
+      renderSelects(accounts);
+    }
+
+    async function refreshAccounts() {
+      const pageSize = 200;
+      currentAccounts = [];
+      for (let offset = 0; ; offset += pageSize) {
+        const page = await api(`/v1/accounts?limit=${pageSize}&offset=${offset}`);
+        currentAccounts.push(...page);
+        if (page.length < pageSize) break;
+      }
+      renderAccounts(currentAccounts);
+    }
+
+    async function loadEntries(account) {
+      entriesTitle.textContent = `Ledger entries · ${account.name}`;
+      entriesList.replaceChildren(el('div', 'empty', 'Loading entries…'));
+      entriesTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      try {
+        const entries = await api(`/v1/accounts/${encodeURIComponent(account.id)}/entries`);
+        entriesList.replaceChildren();
+        if (!entries.length) {
+          entriesList.append(el('div', 'empty', 'This account has no entries yet.'));
+          return;
+        }
+        for (const entry of [...entries].reverse()) {
+          const row = el('div', 'entry');
+          const direction = entry.amount.startsWith('-') ? 'negative' : 'positive';
+          row.append(el('div', 'entry-title', `Version ${entry.account_version} · ${entry.transfer_id}`));
+          row.append(el('div', `entry-amount ${direction}`, entry.amount));
+          row.append(el('div', 'entry-meta', `${entry.account_previous_balance} → ${entry.account_current_balance} · ${new Date(entry.event_at).toLocaleString()}`));
+          row.append(el('div', 'entry-meta', `Transfer ${entry.transfer_id}`));
+          entriesList.append(row);
+        }
+      } catch (error) {
+        entriesList.replaceChildren(el('div', 'message error', error.message));
+      }
+    }
+
+    accountForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = accountForm.querySelector('button[type="submit"]');
+      const form = new FormData(accountForm);
+      let metadata = null;
+      const rawMetadata = form.get('metadata').trim();
+      if (rawMetadata) {
+        try { metadata = JSON.parse(rawMetadata); }
+        catch { setMessage('account-message', 'Metadata must be valid JSON.', 'error'); return; }
+      }
+      button.disabled = true;
+      setMessage('account-message', 'Creating account…');
+      try {
+        const account = await api('/v1/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.get('name'),
+            currency: form.get('currency'),
+            allow_negative_balance: form.get('allow_negative_balance') === 'on',
+            allow_positive_balance: form.get('allow_positive_balance') === 'on',
+            metadata,
+          }),
+        });
+        accountForm.reset();
+        accountForm.elements.currency.value = 'USD';
+        accountForm.elements.allow_negative_balance.checked = true;
+        accountForm.elements.allow_positive_balance.checked = true;
+        setMessage('account-message', `Created ${account.name} · ${account.id}`, 'success');
+        await refreshAccounts();
+      } catch (error) {
+        setMessage('account-message', error.message, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    transferForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = transferForm.querySelector('button[type="submit"]');
+      const form = new FormData(transferForm);
+      const from = form.get('from_account_id');
+      const to = form.get('to_account_id');
+      if (from === to) { setMessage('transfer-message', 'Choose two different accounts.', 'error'); return; }
+      let key = form.get('idempotency_key').trim();
+      if (!key) key = crypto.randomUUID();
+      transferForm.elements.idempotency_key.value = key;
+      button.disabled = true;
+      setMessage('transfer-message', `Submitting with idempotency key ${key}…`);
+      try {
+        const result = await api('/v1/transfers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+          body: JSON.stringify({ from_account_id: from, to_account_id: to, amount: form.get('amount').trim() }),
+        });
+        setMessage('transfer-message', `Transfer ${result.id} posted for ${result.amount}.`, 'success');
+        transferForm.elements.idempotency_key.value = '';
+        await refreshAccounts();
+        const target = currentAccounts.find(account => account.id === to);
+        if (target) await loadEntries(target);
+      } catch (error) {
+        setMessage('transfer-message', `${error.message} Keep the key above if you retry this exact request.`, 'error');
+      } finally {
+        updateTransferAvailability();
+      }
+    });
+
+    raceForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = raceForm.querySelector('button[type="submit"]');
+      const fromID = transferForm.elements.from_account_id.value;
+      const toID = transferForm.elements.to_account_id.value;
+      const sourceBefore = currentAccounts.find(account => account.id === fromID);
+      const form = new FormData(raceForm);
+      const requestCount = Number(form.get('request_count'));
+      const amount = form.get('amount').trim();
+      if (!Number.isInteger(requestCount) || requestCount < 2 || requestCount > 50) {
+        setMessage('race-message', 'Choose between 2 and 50 concurrent requests.', 'error');
+        return;
+      }
+      if (!sourceBefore || sourceBefore.allow_negative_balance) {
+        setMessage('race-message', 'Choose a source account with overdrafts blocked to demonstrate the balance guard.', 'error');
+        return;
+      }
+
+      button.disabled = true;
+      setMessage('race-message', `Sending ${requestCount} transfers at once…`);
+      try {
+        const body = JSON.stringify({ from_account_id: fromID, to_account_id: toID, amount });
+        const results = await Promise.allSettled(Array.from({ length: requestCount }, () => api('/v1/transfers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Idempotency-Key': `race-${crypto.randomUUID()}` },
+          body,
+        })));
+        const accepted = results.filter(result => result.status === 'fulfilled').length;
+        const ledgerRejected = results.filter(result => result.status === 'rejected' && result.reason.status === 422).length;
+        const otherFailures = results.length - accepted - ledgerRejected;
+        await refreshAccounts();
+        const sourceAfter = currentAccounts.find(account => account.id === fromID);
+        const destinationAfter = currentAccounts.find(account => account.id === toID);
+        if (otherFailures) {
+          setMessage('race-message', `${accepted} accepted, ${ledgerRejected} rejected by ledger, ${otherFailures} request errors. Source balance: ${sourceBefore.balance} → ${sourceAfter?.balance ?? 'unavailable'}.`, 'error');
+        } else {
+          setMessage('race-message', `${accepted} accepted, ${ledgerRejected} rejected by ledger. Source balance: ${sourceBefore.balance} → ${sourceAfter?.balance ?? 'unavailable'} (version ${sourceBefore.version} → ${sourceAfter?.version ?? '?'}); destination balance: ${destinationAfter?.balance ?? 'unavailable'}.`, 'success');
+        }
+        if (sourceAfter) await loadEntries(sourceAfter);
+      } catch (error) {
+        setMessage('race-message', `Could not complete the race test: ${error.message}`, 'error');
+      } finally {
+        updateTransferAvailability();
+      }
+    });
+
+    document.querySelector('#refresh-accounts').addEventListener('click', async () => {
+      try { await refreshAccounts(); }
+      catch (error) { setMessage('account-message', error.message, 'error'); }
+    });
+
+    accountForm.elements.metadata.addEventListener('input', () => {
+      if (document.querySelector('#account-message').classList.contains('error')) {
+        setMessage('account-message', '');
+      }
+    });
+
+    refreshAccounts().catch(error => setMessage('account-message', error.message, 'error'));
+  </script>
+</body>
+</html>

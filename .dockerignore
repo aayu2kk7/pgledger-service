@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+.claude
+**/node_modules
+**/.next
+**/tmp

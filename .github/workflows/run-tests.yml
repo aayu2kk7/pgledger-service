@@ -6,11 +6,21 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ !contains(github.ref, 'main')}}
 
 jobs:
+  build-api-image:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build protected API image
+        run: docker build --file Dockerfile.api --tag pgledger-api:ci .
+
   test:
     runs-on: ubuntu-26.04
     strategy:
@@ -53,7 +63,7 @@ jobs:
 
   all-tests-passed:
     if: ${{ always() }}
-    needs: test
+    needs: [build-api-image, test]
     runs-on: ubuntu-26.04
     steps:
       # This approach is from: https://github.com/orgs/community/discussions/28864

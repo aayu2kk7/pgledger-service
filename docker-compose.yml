@@ -4,7 +4,7 @@ services:
     command: >
       -c max_wal_size=2GB
     ports:
-      - ${POSTGRES_PORT:-5432}:5432
+      - 127.0.0.1:${POSTGRES_PORT:-5432}:5432
     networks:
       - postgres-network
     environment:

@@ -1,0 +1,19 @@
+FROM golang:1.27.3-alpine AS builder
+
+WORKDIR /src
+COPY go/go.mod go/go.sum ./go/
+WORKDIR /src/go
+RUN go mod download
+COPY go/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/pgledger-api ./cmd/pgledger-api
+
+FROM gcr.io/distroless/static-debian13:nonroot
+
+ENV LISTEN_ADDR=0.0.0.0:8080 \
+    PGLEDGER_REQUIRE_AUTH=true
+
+WORKDIR /app
+COPY --from=builder --chown=nonroot:nonroot /out/pgledger-api /app/pgledger-api
+
+EXPOSE 8080
+ENTRYPOINT ["/app/pgledger-api"]
