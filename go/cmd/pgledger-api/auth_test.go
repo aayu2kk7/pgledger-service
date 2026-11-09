@@ -94,6 +94,40 @@ func TestWriteRateLimitRunsBeforeAuthentication(t *testing.T) {
 	}
 }
 
+func TestWriteRateLimitConfigFromEnv(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		t.Setenv("PGLEDGER_WRITE_RATE_LIMIT_PER_MINUTE", "")
+		t.Setenv("PGLEDGER_WRITE_RATE_LIMIT_BURST", "")
+		perMinute, burst, err := writeRateLimitConfigFromEnv()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if perMinute != writeRatePerMinute || burst != writeBurst {
+			t.Fatalf("expected defaults (%d, %d), got (%d, %d)", writeRatePerMinute, writeBurst, perMinute, burst)
+		}
+	})
+
+	t.Run("overrides", func(t *testing.T) {
+		t.Setenv("PGLEDGER_WRITE_RATE_LIMIT_PER_MINUTE", "60000")
+		t.Setenv("PGLEDGER_WRITE_RATE_LIMIT_BURST", "10000")
+		perMinute, burst, err := writeRateLimitConfigFromEnv()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if perMinute != 60000 || burst != 10000 {
+			t.Fatalf("expected overrides (60000, 10000), got (%d, %d)", perMinute, burst)
+		}
+	})
+
+	t.Run("rejects invalid values", func(t *testing.T) {
+		t.Setenv("PGLEDGER_WRITE_RATE_LIMIT_PER_MINUTE", "0")
+		t.Setenv("PGLEDGER_WRITE_RATE_LIMIT_BURST", "30")
+		if _, _, err := writeRateLimitConfigFromEnv(); err == nil {
+			t.Fatal("expected invalid rate setting to fail")
+		}
+	})
+}
+
 func TestAuthMiddleware(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)

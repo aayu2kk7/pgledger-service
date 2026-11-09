@@ -63,14 +63,23 @@ curl -X POST http://localhost:8080/v1/transfers \
 
 Create endpoints return `201`; read endpoints return `200`. Errors use a JSON `error` field: `400` for malformed requests, `404` when an account does not exist, `422` when the ledger rejects a write, and `503` when the database cannot serve a read or health check.
 
-To measure the HTTP path, start the API and run this from a second terminal:
+To measure the HTTP path against local PostgreSQL data, start the API with a higher write limit in the API terminal, then run the load checker from a second terminal. The default limit (30-request burst, 120 requests per minute) stays enabled unless explicitly overridden.
 
 ```powershell
-cd go
+Set-Location C:\Pg_ledger\pgledgercx\go
+$env:PGLEDGER_WRITE_RATE_LIMIT_PER_MINUTE = '60000'
+$env:PGLEDGER_WRITE_RATE_LIMIT_BURST = '10000'
+mise exec -- go run ./cmd/pgledger-api
+```
+
+In a second PowerShell window:
+
+```powershell
+Set-Location C:\Pg_ledger\pgledgercx\go
 mise exec -- go run ./cmd/pgledger-api-performance --duration 10s --workers 20 --amount 1.00
 ```
 
-The tool creates two dedicated hot accounts, sends transfers through the HTTP API for the requested duration, and reports throughput plus average, p95, and p99 latency. It then checks that both account versions match the successful transfer count and that their balances sum to zero. Each successful request appends permanent ledger records, so run it against demo or test data, not data you need to keep. This measures the API path and is separate from `just performance_check`, which exercises the database functions directly.
+The tool creates two dedicated hot accounts, sends transfers through the HTTP API for the requested duration, and reports throughput plus average, p95, and p99 latency. It then checks that both account versions match the successful transfer count and that their balances sum to zero. Each successful request appends permanent ledger records, so use a local database you can reset. Do not raise the limiter settings on the public deployment. This measures the API path and is separate from `just performance_check`, which exercises the database functions directly.
 
 One local run on Windows 11 with PostgreSQL in Docker Desktop (2026-11-08) used 10 workers for 5 seconds and completed 4,994 successful transfers: about 997 transfers/second, 10.019 ms average latency, 27.201 ms p95, and 44.295 ms p99. Treat this as a sample from one local run, not a capacity guarantee; hardware, database settings, and contention change the result.
 

@@ -1,13 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+const maxConfiguredRateLimit = 1_000_000
 
 const (
 	writeRatePerMinute = 120
@@ -37,6 +41,30 @@ func newWriteRateLimiter(perMinute, burst int) *writeRateLimiter {
 		burst:   float64(burst),
 		now:     time.Now,
 	}
+}
+
+func writeRateLimitConfigFromEnv() (int, int, error) {
+	perMinute, err := positiveEnvInt("PGLEDGER_WRITE_RATE_LIMIT_PER_MINUTE", writeRatePerMinute)
+	if err != nil {
+		return 0, 0, err
+	}
+	burst, err := positiveEnvInt("PGLEDGER_WRITE_RATE_LIMIT_BURST", writeBurst)
+	if err != nil {
+		return 0, 0, err
+	}
+	return perMinute, burst, nil
+}
+
+func positiveEnvInt(name string, fallback int) (int, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 || parsed > maxConfiguredRateLimit {
+		return 0, fmt.Errorf("%s must be an integer between 1 and %d", name, maxConfiguredRateLimit)
+	}
+	return parsed, nil
 }
 
 func (limiter *writeRateLimiter) allow(client string) (bool, time.Duration) {

@@ -93,6 +93,10 @@ func main() {
 	requireAuth := strings.EqualFold(os.Getenv("PGLEDGER_REQUIRE_AUTH"), "true")
 	authUser := os.Getenv("PGLEDGER_HTTP_USER")
 	authPassword := os.Getenv("PGLEDGER_HTTP_PASSWORD")
+	ratePerMinute, rateBurst, err := writeRateLimitConfigFromEnv()
+	if err != nil {
+		log.Fatal(err)
+	}
 	if err := validateServerConfig(requireAuth, authUser, authPassword, databaseURL); err != nil {
 		log.Fatal(err)
 	}
@@ -120,7 +124,7 @@ func main() {
 		Addr: addr,
 		Handler: writeRateLimitMiddleware(
 			authMiddleware(newHandler(db), authUser, authPassword),
-			newWriteRateLimiter(writeRatePerMinute, writeBurst),
+			newWriteRateLimiter(ratePerMinute, rateBurst),
 		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
