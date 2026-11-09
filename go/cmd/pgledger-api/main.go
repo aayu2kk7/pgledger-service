@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -109,7 +110,11 @@ func main() {
 
 	addr := os.Getenv("LISTEN_ADDR")
 	if addr == "" {
-		addr = "127.0.0.1:8080"
+		if port := os.Getenv("PORT"); port != "" {
+			addr = net.JoinHostPort("0.0.0.0", port)
+		} else {
+			addr = "127.0.0.1:8080"
+		}
 	}
 	httpServer := &http.Server{
 		Addr:              addr,

@@ -9,7 +9,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/pgledge
 
 FROM gcr.io/distroless/static-debian13:nonroot
 
-ENV LISTEN_ADDR=0.0.0.0:8080 \
+ENV PORT=8080 \
     PGLEDGER_REQUIRE_AUTH=true
 
 WORKDIR /app
