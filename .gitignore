@@ -1,3 +1,7 @@
 .claude/settings.local.json
 .env
+.env.local
+.render-deploy.env
 go/propertytest/testdata/hegel/
+.neon
+node_modules/

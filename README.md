@@ -42,6 +42,14 @@ For deployment, configure `PGLEDGER_HTTP_USER` and `PGLEDGER_HTTP_PASSWORD` to e
 
 Before exposing the demo link, enable rate limits at the hosting edge and keep the demo database separate from development data. Basic Auth is a shared access gate; anyone given those credentials can use the demo. The API should only be reachable through the HTTPS host or reverse proxy.
 
+### Hosted demo
+
+The live demo is available at [pgledger-api-demo.onrender.com](https://pgledger-api-demo.onrender.com). It is hosted on Render's free web-service plan and connected to a dedicated Neon PostgreSQL database. HTTP Basic Auth protects the page and API; credentials are shared directly with interviewers on request and are not stored in this repository. The free instance can spin down while idle, so its first response may take 50 seconds or longer. The demo writes permanent, append-only ledger records; use fictional data only.
+
+Cloud verification on 2026-11-09: ten concurrent transfers of `20.00` from a `100.00` overdraft-blocked account produced five accepted transfers and five ledger rejections. The source ended at `0.00` (version 10) and the destination at `100.00` (version 11). A read-only reconciliation scan afterward reported zero violations across all eight checks. The test records remain in the demo database.
+
+The API is a Go service built with Docker, not a Node application; the root `package.json` is for Neon CLI configuration and does not define an `npm run build` script. Render's successful Docker build and the Go CI workflow are the relevant build checks.
+
 `POST /v1/accounts` accepts `name`, `currency`, optional `allow_negative_balance`, optional `allow_positive_balance`, and optional `metadata`. `GET /v1/accounts` sorts by each account's latest transfer or creation time so recently used and newly created accounts appear first; `GET /v1/accounts/{id}` returns one account and its current balance; `GET /v1/accounts/{id}/entries` returns ledger entries. List and entry routes accept `limit` (default 100, maximum 200) and `offset`; entry pages contain the most recent entries in account-version order. `POST /v1/transfers` accepts `from_account_id`, `to_account_id`, `amount` as a decimal string, optional RFC 3339 `event_at`, optional `metadata`, and a required `Idempotency-Key` header. Keys are mandatory so API retries cannot silently create duplicate transfers; PostgreSQL remains the source of truth for matching, replay, and mismatched-key rejection. Amounts are strings so clients can avoid floating point rounding. `GET /healthz` checks database connectivity.
 
 Example transfer request:
