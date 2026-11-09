@@ -81,7 +81,7 @@ mise exec -- go run ./cmd/pgledger-api-performance --duration 10s --workers 20 -
 
 The tool creates two dedicated hot accounts, sends transfers through the HTTP API for the requested duration, and reports throughput plus average, p95, and p99 latency. It then checks that both account versions match the successful transfer count and that their balances sum to zero. Each successful request appends permanent ledger records, so use a local database you can reset. Do not raise the limiter settings on the public deployment. This measures the API path and is separate from `just performance_check`, which exercises the database functions directly.
 
-One local run on Windows 11 with PostgreSQL in Docker Desktop (2026-11-08) used 10 workers for 5 seconds and completed 4,994 successful transfers: about 997 transfers/second, 10.019 ms average latency, 27.201 ms p95, and 44.295 ms p99. Treat this as a sample from one local run, not a capacity guarantee; hardware, database settings, and contention change the result.
+One local run on Windows 11 with PostgreSQL 18 in Docker Desktop (2026-11-09) used 20 workers for 10 seconds and completed 6,956 successful transfers: 689.3 transfers/second, 28.917 ms average latency, 76.182 ms p95, and 152.67 ms p99. The local API limiter was configured for 60,000 requests per minute with a 10,000-request burst for this benchmark. The tool reported zero failed requests, both account versions were 6,956, and the ending balances summed to zero. Treat this as one local sample, not a capacity guarantee; hardware, database settings, and contention affect results.
 
 ### Reconciliation worker
 
