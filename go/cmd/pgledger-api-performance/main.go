@@ -11,7 +11,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -84,7 +84,9 @@ func runLoadCheck(apiURL string, duration time.Duration, workerCount int, amount
 	if err != nil {
 		return fmt.Errorf("connect to API at %s: %w", apiURL, err)
 	}
-	response.Body.Close()
+	if err := response.Body.Close(); err != nil {
+		return fmt.Errorf("close health-check response body: %w", err)
+	}
 	if response.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("health check returned HTTP %d; expected 204", response.StatusCode)
 	}
@@ -157,7 +159,7 @@ func runLoadCheck(apiURL string, duration time.Duration, workerCount int, amount
 		return fmt.Errorf("source and destination balances do not sum to zero: source=%s destination=%s", sourceAfter.Balance, destinationAfter.Balance)
 	}
 
-	sort.Slice(allLatencies, func(i, j int) bool { return allLatencies[i] < allLatencies[j] })
+	slices.Sort(allLatencies)
 	var latencySum time.Duration
 	for _, latency := range allLatencies {
 		latencySum += latency
@@ -258,13 +260,19 @@ func createLoadAccount(client *http.Client, apiURL, name string) (loadAccount, e
 	if err != nil {
 		return loadAccount{}, err
 	}
-	defer response.Body.Close()
+	responseBody, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		return loadAccount{}, fmt.Errorf("read create-account response: %w", readErr)
+	}
+	if closeErr != nil {
+		return loadAccount{}, fmt.Errorf("close create-account response: %w", closeErr)
+	}
 	if response.StatusCode != http.StatusCreated {
-		responseBody, _ := io.ReadAll(response.Body)
 		return loadAccount{}, fmt.Errorf("HTTP %d: %s", response.StatusCode, responseBody)
 	}
 	var account loadAccount
-	if err := json.NewDecoder(response.Body).Decode(&account); err != nil {
+	if err := json.Unmarshal(responseBody, &account); err != nil {
 		return loadAccount{}, err
 	}
 	return account, nil
@@ -279,13 +287,19 @@ func getLoadAccount(client *http.Client, apiURL, accountID string) (loadAccount,
 	if err != nil {
 		return loadAccount{}, err
 	}
-	defer response.Body.Close()
+	responseBody, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		return loadAccount{}, fmt.Errorf("read account response: %w", readErr)
+	}
+	if closeErr != nil {
+		return loadAccount{}, fmt.Errorf("close account response: %w", closeErr)
+	}
 	if response.StatusCode != http.StatusOK {
-		responseBody, _ := io.ReadAll(response.Body)
 		return loadAccount{}, fmt.Errorf("HTTP %d: %s", response.StatusCode, responseBody)
 	}
 	var account loadAccount
-	if err := json.NewDecoder(response.Body).Decode(&account); err != nil {
+	if err := json.Unmarshal(responseBody, &account); err != nil {
 		return loadAccount{}, err
 	}
 	return account, nil

@@ -190,9 +190,7 @@ func TestConcurrentSameIdempotencyKeyCreatesOneTransferHTTP(t *testing.T) {
 	var wait sync.WaitGroup
 	client := server.Client()
 	for range requestCount {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			<-start
 			request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/v1/transfers", bytes.NewReader(body))
 			if err != nil {
@@ -206,11 +204,13 @@ func TestConcurrentSameIdempotencyKeyCreatesOneTransferHTTP(t *testing.T) {
 				results <- result{err: err}
 				return
 			}
-			defer response.Body.Close()
 			var responseTransfer transfer
 			err = json.NewDecoder(response.Body).Decode(&responseTransfer)
+			if closeErr := response.Body.Close(); err == nil {
+				err = closeErr
+			}
 			results <- result{status: response.StatusCode, id: responseTransfer.ID, err: err}
-		}()
+		})
 	}
 	close(start)
 	wait.Wait()
@@ -387,8 +387,10 @@ func TestConcurrentTransfersRespectBalanceConstraintHTTP(t *testing.T) {
 				results <- requestResult{err: err}
 				return
 			}
-			defer response.Body.Close()
 			responseBody, err := io.ReadAll(response.Body)
+			if closeErr := response.Body.Close(); err == nil {
+				err = closeErr
+			}
 			results <- requestResult{statusCode: response.StatusCode, body: string(responseBody), err: err}
 		}(index)
 	}
